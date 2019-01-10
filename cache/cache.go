@@ -3,6 +3,7 @@ package cache
 import (
 	"errors"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -17,12 +18,16 @@ type Object struct {
 }
 
 // Data returns a copy of the data held in Object.
-func (f *Object) Data() []byte {
-	return f.data[:]
+func (o *Object) Bytes() []byte {
+	return o.data[:]
 }
 
-func (f *Object) LastMod() time.Time {
-	return f.lastMod
+func (o *Object) CSS() template.CSS {
+	return template.CSS(o.data[:])
+}
+
+func (o *Object) LastMod() time.Time {
+	return o.lastMod
 }
 
 type Cache struct {
@@ -47,6 +52,25 @@ type Cache struct {
 
 func New() *Cache {
 	return &Cache{mapping: make(map[string]*Object)}
+}
+
+func (c *Cache) List() (aliases []string) {
+	for alias := range c.mapping {
+		aliases = append(aliases, alias)
+	}
+	return aliases
+}
+
+func (c *Cache) MustAddDir(alias, dirPath string, exts []string, recursive bool) {
+	if err := c.AddDir(alias, dirPath, exts, recursive); err != nil {
+		panic(err)
+	}
+}
+
+func (c *Cache) MustAddFile(alias, filePath string) {
+	if err := c.AddFile(alias, filePath); err != nil {
+		panic(err)
+	}
 }
 
 func (c *Cache) AddDir(alias, dirPath string, exts []string, recursive bool) error {
@@ -149,10 +173,7 @@ func (c *Cache) delete(alias string, dropped []string) {
 	}
 }
 
-func (c *Cache) Load(alias string) interface {
-	Data() []byte
-	LastMod() time.Time
-} {
+func (c *Cache) Load(alias string) *Object {
 	c.mu.RLock()
 	f, ok := c.mapping[alias]
 	c.mu.RUnlock()
